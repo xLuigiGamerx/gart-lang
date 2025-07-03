@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "iostream": "cpp",
+        "bitset": "cpp",
+        "string_view": "cpp",
+        "math.h": "c"
+    }
+}
