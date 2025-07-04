@@ -18,8 +18,8 @@ OBJS := $(OBJS:.cpp=.o)
 CC       = gcc
 CXX      = g++
 INCLUDES = -Iinclude
-CFLAGS   = -Wall -O3 $(INCLUDES)
-CXXFLAGS = -std=c++11 -Wall -O3 $(INCLUDES)
+CFLAGS   = -Wall -O3 -g $(INCLUDES)
+CXXFLAGS = -std=c++23 -Wall -O3 -g $(INCLUDES)
 LDFLAGS  = 
 
 # Default target

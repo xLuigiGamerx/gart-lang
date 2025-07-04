@@ -1,228 +1,77 @@
-#define STB_C_LEXER_IMPLEMENTATION
-#include "stb_c_lexer.h"
-
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include "clexer.h"
 
-const char *keywords[] = {
-    "fn",
-};
+#include "stb_c_lexer.h"
 
-const char* CLEX_to_tokenstr[] = {
-    [CLEX_eof]         = "<eof>",
-    //[CLEX_parse_error] = "Parse Error",
-    [CLEX_intlit]      = "Integer",
-    [CLEX_floatlit]    = "Float",
-    [CLEX_id]          = "Identifier",
-    [CLEX_dqstring]    = "String",
-    [CLEX_sqstring]    = "String",
-    [CLEX_charlit]     = "String",
-    [CLEX_eq]          = "Operator",
-    [CLEX_noteq]       = "Operator",
-    [CLEX_lesseq]      = "Operator",
-    [CLEX_greatereq]   = "Operator",
-    [CLEX_andand]      = "Operator",
-    [CLEX_oror]        = "Operator",
-    [CLEX_shl]         = "Operator",
-    [CLEX_shr]         = "Operator",
-    [CLEX_plusplus]    = "Operator",
-    [CLEX_minusminus]  = "Operator",
-    [CLEX_pluseq]      = "Operator",
-    [CLEX_minuseq]     = "Operator",
-    [CLEX_muleq]       = "Operator",
-    [CLEX_diveq]       = "Operator",
-    [CLEX_modeq]       = "Operator",
-    [CLEX_andeq]       = "Operator",
-    [CLEX_oreq]        = "Operator",
-    [CLEX_xoreq]       = "Operator",
-    [CLEX_arrow]       = "Operator",
-    [CLEX_eqarrow]     = "Operator",
-    [CLEX_shleq]       = "Operator",
-    [CLEX_shreq]       = "Operator",
-};
+extern void parse_program(stb_lexer *lexer, FILE *out);
 
-bool expect_clex(stb_lexer *lexer, int expected)
-{
-    if (!stb_c_lexer_get_token(lexer))
-    {
-        printf("Unexpected end of input, expected token %d\n", expected);
-        return false;
-    }
-    if (lexer->token != expected)
-    {
-        if (lexer->token == CLEX_parse_error) {
-            printf("Parse ERROR: expected %s, but got token '%s'\n", CLEX_to_tokenstr[expected], lexer->string);
-        } else {
-            printf("Syntax ERROR: expected %s, but got %s '%s'\n", CLEX_to_tokenstr[expected], CLEX_to_tokenstr[lexer->token], lexer->string);
-        }
-        return false;
-    }
-    return true;
+void write_fasm_header(FILE *out) {
+    fprintf(out,
+        "format PE64 console\n"
+        "entry main\n\n"
+        "include 'asm/INCLUDE/WIN64A.inc'\n\n"
+        "section '.data' data readable writeable\n"
+    );
 }
 
-static void parse_token(stb_lexer *lexer, FILE *c_file)
+void write_imports(FILE *out) {
+    fprintf(out, "section '.idata' import data readable\n");
 
-{
-    printf("\n");
-    switch (lexer->token)
-    {
-    case CLEX_id:
-
-        for (int key = 0; key < sizeof(keywords) / (sizeof(keywords[0])); key++)
-        {
-            if (!strcmp(keywords[key], lexer->string))
-            {
-
-                if (!strcmp(lexer->string, "fn"))
-                {
-                    fprintf(c_file, "int ");
-                    if (expect_clex(lexer, CLEX_id)) {
-                        fprintf(c_file, "%s", lexer->string);
-                        //TODO: args
-
-                        expect_clex(lexer, '(');
-                        expect_clex(lexer, ')');
-                        fprintf(c_file, "()");
-                    }
-                }
-            }
-        }
-        break;
-    case CLEX_eq:
-        printf("==");
-        break;
-    case CLEX_noteq:
-        printf("!=");
-        break;
-    case CLEX_lesseq:
-        printf("<=");
-        break;
-    case CLEX_greatereq:
-        printf(">=");
-        break;
-    case CLEX_andand:
-        printf("&&");
-        break;
-    case CLEX_oror:
-        printf("||");
-        break;
-    case CLEX_shl:
-        printf("<<");
-        break;
-    case CLEX_shr:
-        printf(">>");
-        break;
-    case CLEX_plusplus:
-        printf("++");
-        break;
-    case CLEX_minusminus:
-        printf("--");
-        break;
-    case CLEX_arrow:
-        printf("->");
-        break;
-    case CLEX_andeq:
-        printf("&=");
-        break;
-    case CLEX_oreq:
-        printf("|=");
-        break;
-    case CLEX_xoreq:
-        printf("^=");
-        break;
-    case CLEX_pluseq:
-        printf("+=");
-        break;
-    case CLEX_minuseq:
-        printf("-=");
-        break;
-    case CLEX_muleq:
-        printf("*=");
-        break;
-    case CLEX_diveq:
-        printf("/=");
-        break;
-    case CLEX_modeq:
-        printf("%%=");
-        break;
-    case CLEX_shleq:
-        printf("<<=");
-        break;
-    case CLEX_shreq:
-        printf(">>=");
-        break;
-    case CLEX_eqarrow:
-        printf("=>");
-        break;
-    case CLEX_dqstring:
-        printf("\"%s\"", lexer->string);
-        break;
-    case CLEX_sqstring:
-        printf("'\"%s\"'", lexer->string);
-        break;
-    case CLEX_charlit:
-        printf("'%s'", lexer->string);
-        break;
-    case CLEX_intlit:
-        printf("#%g", lexer->real_number);
-        break;
-    case CLEX_floatlit:
-        printf("%g", lexer->real_number);
-        break;
-    default:
-        if (lexer->token >= 0 && lexer->token < 256)
-            printf("%c", (int)lexer->token);
-        else
-        {
-            printf("<<<UNKNOWN TOKEN %ld >>>\n", lexer->token);
-        }
-        break;
-    }
+    fprintf(out, "    library msvcrt, 'msvcrt.dll', kernel32, 'kernel32.dll'\n");
+    fprintf(out, "    import msvcrt, printf, 'printf'\n");
+    fprintf(out, "    import kernel32, ExitProcess, 'ExitProcess'\n");
 }
 
-char *read_file(const char *path)
-{
+char *read_file(const char *path) {
     FILE *f = fopen(path, "rb");
-    if (!f)
-    {
-        perror("open");
-        return NULL;
-    }
 
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
     rewind(f);
 
     char *buf = malloc(size + 1);
-    if (!buf)
-    {
-        perror("malloc");
-        fclose(f);
-        return NULL;
-    }
 
-    size_t read_bytes = fread(buf, 1, size, f);
-    buf[read_bytes] = '\0';
-
+    fread(buf, 1, size, f);
+    buf[size] = '\0';
     fclose(f);
     return buf;
 }
 
-int main(void)
-{
-    char *source = read_file("hello_world.gl");
-    FILE *outputC = fopen("gl2C.cdump", "w");
+int main(int argc, char *argv[]) {
+    char *source = read_file(argv[1]);
+    if (!source) return 1;
 
-    // Initialize lexer with source string
+    FILE *out = fopen("out.asm", "w");
+
+    char *string_store = malloc(0x10000);
     stb_lexer lex;
-    stb_c_lexer_init(&lex, source, source + strlen(source), (char *)malloc(0x10000), 0x10000);
-    printf("Tokens:\n");
-    while (stb_c_lexer_get_token(&lex))
-    {
-        parse_token(&lex, outputC);
-    }
-    free(source);
+    stb_c_lexer_init(&lex, source, source + strlen(source), string_store, 0x10000);
 
+    write_fasm_header(out);
+    parse_program(&lex, out);
+    fprintf(out, "section '.text' code readable executable\n");
+    write_code = true;
+    str_pc = 0;
+    float_pc = 0;
+    stb_c_lexer_init(&lex, source, source + strlen(source), string_store, 0x10000);
+    parse_program(&lex, out);
+    write_imports(out);
+    fclose(out);
+    int status = system(".\\asm\\FASM.EXE out.asm");
+
+    if (status != 0) {
+        fprintf(stderr, "FASM failed to assemble the file.\n");
+        fclose(out);
+        free(string_store);
+        free(source);
+        return 1;
+    }
+
+    printf("FASM assembled successfully. Output: out.exe (or .com)\n");
+    free(string_store);
+    free(source);
     return 0;
 }

@@ -1,0 +1,6 @@
+gvar globalStr = "Hello, I'm Gart!"
+
+fn main()
+    printf(globalStr)
+    return 0
+end
