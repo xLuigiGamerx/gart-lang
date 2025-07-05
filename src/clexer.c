@@ -32,6 +32,9 @@ struct Variable *variables[2048];
 int var_count = 0;
 int func_count = 0;
 
+#define PRINT_ERR(fmt, ...) if (write_code) { printf("\x1b[1;31m"); printf("Error: "); printf("\x1b[0m"); printf(fmt, ##__VA_ARGS__); }
+#define PRINT_ERR2(fmt, ...) printf("\x1b[1;31m"); printf("Error: "); printf("\x1b[0m"); printf(fmt, ##__VA_ARGS__);
+
 const char* CLEX_to_tokenstr[] = {
     [CLEX_eof]         = "<eof>",
     [CLEX_intlit]      = "Integer",
@@ -91,22 +94,23 @@ char *escape_string(const char *src) {
 
 bool expect_clex(stb_lexer *lexer, int expected) {
     if (!stb_c_lexer_get_token(lexer)) {
-        printf("Syntax ERROR: unexpected end of input, expected token %s\n", CLEX_to_tokenstr[expected]);
+        PRINT_ERR("unexpected end of input, expected token %s\n", CLEX_to_tokenstr[expected]);
         return false;
     }
     if (lexer->token != expected) {
         const char *got = (lexer->token >= 0 && lexer->token < 256)
                           ? (char[]){ (char)lexer->token, '\0' }
                           : lexer->string;
-        printf("Syntax ERROR: expected token %s, got '%s'\n", CLEX_to_tokenstr[expected], got);
+        PRINT_ERR("expected token %s, got '%s'\n", CLEX_to_tokenstr[expected], got);
         return false;
     }
     return true;
 }
 
-void parse_return(stb_lexer *lexer, FILE *out) {
+void parse_return(stb_lexer *lexer, FILE *out, const char* func_name) {
     stb_c_lexer_get_token(lexer);
-    if (write_code){
+
+    if (write_code) {
         if (lexer->token == CLEX_intlit) {
             fprintf(out, "    mov eax, %d\n", (int)lexer->int_number);
         } else if (lexer->token == CLEX_floatlit) {
@@ -114,29 +118,25 @@ void parse_return(stb_lexer *lexer, FILE *out) {
         } else if (lexer->token == CLEX_dqstring) {
             fprintf(out, "    lea rcx, [str_val_%d]\n", str_pc++);
         }
-        fprintf(out, "    call [ExitProcess]\n");
+        if (strcmp(func_name, "main") == 0) 
+            fprintf(out, "    call [ExitProcess]\n"); 
+        else 
+            fprintf(out, "    ret\n");
     } else {
-        switch (lexer->token) {
-            case CLEX_intlit:
-                break;
-            case CLEX_floatlit:
-                fprintf(out, "    float_val_%d dq %f\n", float_pc++, lexer->real_number);
-                break;
-            case CLEX_dqstring:
-                char *escaped = escape_string(lexer->string);
-                fprintf(out, "    str_val_%d db ", str_pc);
-                for (char *c = escaped; *c; ++c)
-                    fprintf(out, "%d,", (unsigned char)*c);
-                fprintf(out, "0\n");
-                free(escaped);
-                str_pc++;
-                break;
-            default:
-                printf("Syntax ERROR: unexpected return value '%s'\n", CLEX_to_tokenstr[lexer->token]);
-                break;
+        if (lexer->token == CLEX_floatlit) {
+            fprintf(out, "    float_val_%d dq %f\n", float_pc++, lexer->real_number);
+        } else if (lexer->token == CLEX_dqstring) {
+            char *escaped = escape_string(lexer->string);
+            fprintf(out, "    str_val_%d db ", str_pc);
+            for (char *c = escaped; *c; ++c)
+                fprintf(out, "%d,", (unsigned char)*c);
+            fprintf(out, "0\n");
+            free(escaped);
+            str_pc++;
+        } else if (lexer->token != CLEX_intlit) {
+            PRINT_ERR2("unexpected return value '%s'\n", CLEX_to_tokenstr[lexer->token]);
         }
     }
-  
 }
 
 void parse_call(stb_lexer *lexer, FILE *out) {
@@ -146,85 +146,70 @@ void parse_call(stb_lexer *lexer, FILE *out) {
     bool custom_func = false;
 
     for (int func = 0; func < 2048; func++) {
-        if (functions[func]) {
-            if (strcmp(functions[func], func_name) == 0) {
-                custom_func = true;
-            }
+        if (functions[func] && strcmp(functions[func], func_name) == 0) {
+            custom_func = true;
+            break;
         }
     }
 
     if (!expect_clex(lexer, '(')) return;
 
-    if (!stb_c_lexer_get_token(lexer)) {
-        printf("Syntax ERROR: unexpected end of input in function call param\n");
-        return;
-    }
+    const char *reg_order[] = { "rcx", "rdx", "r8", "r9" };
+    const char *xmm_order[] = { "xmm0", "xmm1", "xmm2", "xmm3" };
+    int param_count = 0;
 
-    if (write_code) {
-        if (lexer->token == CLEX_dqstring) {
-            fprintf(out, "    lea rcx, [str_val_%d]\n", str_pc++);
-        } else if (lexer->token == CLEX_intlit) {
-            fprintf(out, "    mov rcx, %d\n", (int)lexer->int_number);
-        } else if (lexer->token == CLEX_floatlit) {
-            fprintf(out, "    movsd xmm0, [float_val_%d]\n", float_pc++);
-        } else if (lexer->token == CLEX_id) {
-            bool isVariable = false;
-            struct Variable *custom_var = NULL;
-            for (int var = 0; var < 2048; var++) {
-                if (variables[var] != NULL) {
-                    if (strcmp(variables[var]->name, lexer->string) == 0) {
-                        isVariable = true;
-                        custom_var = variables[var];
-                    }
-                }
-            }
-            if (!isVariable) {
-                printf("Syntax ERROR: undefined variable '%s'\n", lexer->string);
-                return;
-            }
-            switch (custom_var->type) {
-                case TYPE_INT:
-                case TYPE_TOKEN:
-                    fprintf(out, "    mov rcx, [%s]\n", custom_var->name);
-                    break;
-                case TYPE_FLOAT:
-                    fprintf(out, "    movsd xmm0, [%s]\n", custom_var->name);
-                    break;
-                case TYPE_STR:
-                    fprintf(out, "    lea rcx, [%s]\n", custom_var->name);
-                    break;
-                default:
-                    printf("Syntax ERROR: unexpected variable type '%d'\n", custom_var->type);
-                    break;
-            }
-        } else {
-            if (lexer->token == ')') {
-                if (custom_func) {
-                    fprintf(out, "    call %s\n", func_name); 
-                } else {
-                    fprintf(out, "    call [%s]\n", func_name);
-                }
-                return;
-            }
-            printf("Syntax ERROR: unexpected parameter type '%s'\n", CLEX_to_tokenstr[lexer->token]);
+    while (true) {
+        if (!stb_c_lexer_get_token(lexer)) {
+            PRINT_ERR("unexpected end of input in function call\n");
             return;
         }
-        // call func 
-        for (int func = 0; func < 2048; func++) {
-            if (functions[func]) {
-                if (strcmp(functions[func], func_name) == 0) {
-                    fprintf(out, "    call %s\n", func_name); 
+
+        if (lexer->token == ')') break;
+
+        if (write_code) {
+            const char *reg = param_count < 4 ? reg_order[param_count] : NULL;
+            const char *xmm = param_count < 4 ? xmm_order[param_count] : NULL;
+
+            if (lexer->token == CLEX_dqstring) {
+                fprintf(out, "    lea %s, [str_val_%d]\n", reg ? reg : "rcx", str_pc++);
+            } else if (lexer->token == CLEX_intlit) {
+                fprintf(out, "    mov %s, %d\n", reg ? reg : "rcx", (int)lexer->int_number);
+            } else if (lexer->token == CLEX_floatlit) {
+                fprintf(out, "    movsd %s, [float_val_%d]\n", xmm ? xmm : "xmm0", float_pc++);
+            } else if (lexer->token == CLEX_id) {
+                struct Variable *custom_var = NULL;
+                for (int var = 0; var < var_count; var++) {
+                    if (variables[var] && strcmp(variables[var]->name, lexer->string) == 0) {
+                        custom_var = variables[var];
+                        break;
+                    }
                 }
+                if (!custom_var) {
+                    PRINT_ERR("unknown variable '%s'\n", lexer->string);
+                    return;
+                }
+
+                switch (custom_var->type) {
+                    case TYPE_INT:
+                    case TYPE_TOKEN:
+                        fprintf(out, "    mov %s, [%s]\n", reg ? reg : "rcx", custom_var->name);
+                        break;
+                    case TYPE_FLOAT:
+                        fprintf(out, "    movsd %s, [%s]\n", xmm ? xmm : "xmm0", custom_var->name);
+                        break;
+                    case TYPE_STR:
+                        fprintf(out, "    lea %s, [%s]\n", reg ? reg : "rcx", custom_var->name);
+                        break;
+                    default:
+                        PRINT_ERR("invalid type for variable '%s'\n", custom_var->name);
+                        return;
+                }
+            } else {
+                PRINT_ERR("unexpected parameter type '%s'\n", CLEX_to_tokenstr[lexer->token]);
+                return;
             }
-        }
-        if (custom_func) {
-            fprintf(out, "    call %s\n", func_name); 
         } else {
-            fprintf(out, "    call [%s]\n", func_name);
-        }
-    } else {
-        switch (lexer->token) {
-            case CLEX_dqstring:
+            if (lexer->token == CLEX_dqstring) {
                 char *escaped = escape_string(lexer->string);
                 fprintf(out, "    str_val_%d db ", str_pc);
                 for (char *c = escaped; *c; ++c)
@@ -232,33 +217,40 @@ void parse_call(stb_lexer *lexer, FILE *out) {
                 fprintf(out, "0\n");
                 free(escaped);
                 str_pc++;
-                break;
-            case CLEX_intlit:
-                //
-                break;
-            case CLEX_floatlit:
+            } else if (lexer->token == CLEX_floatlit) {
                 fprintf(out, "    float_val_%d dq %f\n", float_pc++, lexer->real_number);
-                break;
-            case CLEX_id:
-                //
-                break;
-            default:
-                if (lexer->token == ')') {
-                    return;
-                }
-                printf("Syntax ERROR: unexpected parameter type '%s'\n", CLEX_to_tokenstr[lexer->token]);
-                return;
+            }
+        }
+
+        param_count++;
+
+        if (!stb_c_lexer_get_token(lexer)) {
+            PRINT_ERR("expected ',' or ')' after function parameter\n");
+            return;
+        }
+        if (lexer->token == ')') break;
+        if (lexer->token != ',') {
+            PRINT_ERR("expected ',' between function parameters\n");
+            return;
         }
     }
 
-    if (!expect_clex(lexer, ')')) return;
+    if (write_code) {
+        if (custom_func) {
+            //dpesnt lol, its return;ing some
+            fprintf(out, "    call %s\n", func_name); 
+        } else {
+            fprintf(out, "    call [%s]\n", func_name);
+        }
+    }
 }
 
 void parse_function(stb_lexer *lexer, FILE *out) {
     // expect function name after 'fn'
     if (!expect_clex(lexer, CLEX_id)) return;
     if (write_code) fprintf(out, "%s:\n", lexer->string);
-    functions[func_count++] = strdup(lexer->string);
+    char* func_name = strdup(lexer->string);;
+    functions[func_count++] = func_name;
 
     // expect '('
     if (!expect_clex(lexer, '(')) return;
@@ -269,8 +261,11 @@ void parse_function(stb_lexer *lexer, FILE *out) {
         if (!expect_clex(lexer, CLEX_id)) return;
 
         if (strcmp(lexer->string, "return") == 0) {
-            parse_return(lexer, out);
+            parse_return(lexer, out, func_name);
         } else if (strcmp(lexer->string, "end") == 0) {
+            if (write_code && strcmp(func_name, "main") != 0) {
+                fprintf(out, "    ret\n"); //guess this?
+            }
             break;
         } else {
             parse_call(lexer, out);
@@ -321,11 +316,15 @@ void parse_variable(stb_lexer *lexer, FILE *out, bool global) {
                     free(escaped);
                     break;
                 case CLEX_id:
-                    if (strcmp(lexer->string, "true")) tokenVar = true; 
-                    else if (strcmp(lexer->string, "false")) tokenVar = false;
-                    else if (strcmp(lexer->string, "NULL")) tokenVar = 0;
+                    if (strcmp(lexer->string, "true") == 0) tokenVar = 1; 
+                    else if (strcmp(lexer->string, "false") == 0) tokenVar = 0;
+                    else if (strcmp(lexer->string, "NULL") == 0) tokenVar = 0;
                     else {
-                        printf("Syntax ERROR: unexpected bool/token value '%s'\n", lexer->string);
+                        parse_call(lexer, out);
+                        fprintf(out, "    %s dq %d\n", variable_name, tokenVar);
+                        variables[var_count]->type = TYPE_TOKEN;
+                        variables[var_count]->Token = tokenVar;
+                        var_count++;
                         return;
                     }
                     fprintf(out, "    %s dq %d\n", variable_name, tokenVar);
@@ -334,7 +333,7 @@ void parse_variable(stb_lexer *lexer, FILE *out, bool global) {
                     var_count++;
                     break;
                 default:
-                    printf("Syntax ERROR: unexpected token '%s'\n", CLEX_to_tokenstr[lexer->token]);
+                    PRINT_ERR("unexpected token '%s'\n", CLEX_to_tokenstr[lexer->token]);
                     break;
             }
         } else {

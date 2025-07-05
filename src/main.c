@@ -17,11 +17,11 @@ void write_fasm_header(FILE *out) {
     );
 }
 
-void write_imports(FILE *out) {
+void write_fasm_imports(FILE *out) {
     fprintf(out, "section '.idata' import data readable\n");
 
     fprintf(out, "    library msvcrt, 'msvcrt.dll', kernel32, 'kernel32.dll'\n");
-    fprintf(out, "    import msvcrt, printf, 'printf'\n");
+    fprintf(out, "    import msvcrt, printf, 'printf', strlen, 'strlen'\n");
     fprintf(out, "    import kernel32, ExitProcess, 'ExitProcess'\n");
 }
 
@@ -58,9 +58,9 @@ int main(int argc, char *argv[]) {
     float_pc = 0;
     stb_c_lexer_init(&lex, source, source + strlen(source), string_store, 0x10000);
     parse_program(&lex, out);
-    write_imports(out);
+    write_fasm_imports(out);
     fclose(out);
-    int status = system(".\\asm\\FASM.EXE out.asm");
+    int status = system(".\\asm\\FASM.EXE out.asm >nul 2>&1");
 
     if (status != 0) {
         fprintf(stderr, "FASM failed to assemble the file.\n");

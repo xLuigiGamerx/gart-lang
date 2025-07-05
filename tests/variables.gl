@@ -1,6 +1,7 @@
-gvar globalStr = "Hello, I'm Gart!"
+gvar string = "I have %u apples!" 
+gvar apple_amount = 6
 
 fn main()
-    printf(globalStr)
+    printf(string, apple_amount)
     return 0
 end
