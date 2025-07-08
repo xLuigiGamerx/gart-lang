@@ -1,0 +1,10 @@
+gvar string = "Random Generated Number: %u" 
+
+fn main()
+    gvar curr_time = time(null)
+    srand(curr_time)
+    # generate random number
+    gvar num = rand()
+    println(string, num)
+    return 0
+end

@@ -122,7 +122,7 @@ void parse_return(stb_lexer *lexer, FILE *out, const char* func_name) {
         case CLEX_id:
             if (strcmp(lexer->string, "true") == 0) {
                 retVal = 1;
-            } else if (strcmp(lexer->string, "false") == 0 || strcmp(lexer->string, "NULL") == 0) {
+            } else if (strcmp(lexer->string, "false") == 0 || strcmp(lexer->string, "null") == 0) {
                 retVal = 0;
             }
             break;
@@ -174,8 +174,10 @@ void parse_call(stb_lexer *lexer, FILE *out) {
             case CLEX_id:
                 if (strcmp(lexer->string, "true") == 0) {
                     fprintf(out, "1");
-                } else if (strcmp(lexer->string, "false") == 0 || strcmp(lexer->string, "NULL") == 0) {
+                } else if (strcmp(lexer->string, "false") == 0) {
                     fprintf(out, "0");
+                } else if (strcmp(lexer->string, "null") == 0) {
+                    fprintf(out, "NULL");
                 } else {
                     fprintf(out, "%s", lexer->string);
                 }
@@ -255,10 +257,10 @@ void parse_variable(stb_lexer *lexer, FILE *out, bool global) {
             case CLEX_id:
                 if (strcmp(lexer->string, "false") == 0 || strcmp(lexer->string, "true") == 0) {
                     fprintf(out, "bool %s = %s;\n", variable_name, lexer->string);
-                } else if (strcmp(lexer->string, "null") == 0 || strcmp(lexer->string, "nil") == 0) {
+                } else if (strcmp(lexer->string, "null") == 0) {
                     fprintf(out, "int *%s = NULL;\n", variable_name);
                 } else {
-                    fprintf(out, "int %s = ", variable_name, lexer->real_number);
+                    fprintf(out, "int %s = ", variable_name);
                     parse_call(lexer, out);
                 }
                 break;

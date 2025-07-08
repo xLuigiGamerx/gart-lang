@@ -1,0 +1,4 @@
+fn main()
+    println("Hello World!\n") # prints Hello World! and breaks the line
+    return 0
+end

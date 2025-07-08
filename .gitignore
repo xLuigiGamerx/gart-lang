@@ -1,5 +1,4 @@
 *.asm
-*.exe
 *.o
-!FASM.EXE
+out/
 build/

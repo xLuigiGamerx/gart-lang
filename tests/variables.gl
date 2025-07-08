@@ -1,7 +1,0 @@
-gvar string = "Length of \"Hello\" is %u" 
-gvar length = strlen("Hello")
-
-fn main()
-    printf(string, length)
-    return 0
-end

@@ -13,9 +13,29 @@ void write_c_header(FILE *out) {
         "#include <stdio.h>\n"
         "#include <stdint.h>\n"
         "#include <stdbool.h>\n"
-        "#include <string.h>\n"
-        "#include <stdlib.h>\n\n"
+        "#include <stdlib.h>\n"
+        "#include <time.h>\n"
+        "#include <string.h>\n\n"
+
+        "#define println printf\n"
     );
+}
+
+#if defined(_WIN32)
+    #include <direct.h>
+    #define mkdir_crossp(path) _mkdir(path)
+#else
+    #include <sys/stat.h>
+    #include <sys/types.h>
+    #define mkdir_crossp(path) mkdir(path, 0755)
+#endif
+
+int make_dir(const char *path) {
+    int result = mkdir_crossp(path);
+    if (result == 0 || errno == EEXIST) {
+        return 0;
+    }
+    return -1;
 }
 
 char *read_file(const char *path) {
@@ -36,6 +56,7 @@ char *read_file(const char *path) {
 int main(int argc, char *argv[]) {
     char *source = read_file(argv[1]);
     if (!source) return 1;
+    make_dir("out");
     FILE *out = fopen("out/out.c", "w");
     char *string_store = malloc(0x10000);
     stb_lexer lex;
@@ -44,7 +65,7 @@ int main(int argc, char *argv[]) {
     write_c_header(out);
     parse_program(&lex, out);
     fclose(out);
-    int status = system("gcc out/out.c -o out/out.exe");
+    /*int status = */system("gcc out/out.c -o out/out.exe");
     free(string_store);
     free(source);
     return 0;

@@ -72,6 +72,8 @@
         "clexer.h": "c",
         "asm_buffer.h": "c",
         "stdlib.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "types.h": "c",
+        "stat.h": "c"
     }
 }
