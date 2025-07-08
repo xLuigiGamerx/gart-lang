@@ -4,9 +4,9 @@ TARGET = build/gart_lang
 # Output directory for .o files
 BUILD_DIR = build
 
-# Find all C/C++ source files
-C_SRCS   := $(shell find . -name "*.c")
-CPP_SRCS := $(shell find . -name "*.cpp")
+# Find all C/C++ source files, excluding the "out/" directory
+C_SRCS   := $(shell find . -name "*.c"   ! -path "./out/*")
+CPP_SRCS := $(shell find . -name "*.cpp" ! -path "./out/*")
 SRCS     := $(C_SRCS) $(CPP_SRCS)
 
 # Convert source paths to object paths inside BUILD_DIR

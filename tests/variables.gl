@@ -1,7 +1,7 @@
-gvar string = "I have %u apples!" 
-gvar apple_amount = 6
+gvar string = "Length of \"Hello\" is %u" 
+gvar length = strlen("Hello")
 
 fn main()
-    printf(string, apple_amount)
+    printf(string, length)
     return 0
 end

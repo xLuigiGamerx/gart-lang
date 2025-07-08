@@ -70,6 +70,8 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "clexer.h": "c",
-        "asm_buffer.h": "c"
+        "asm_buffer.h": "c",
+        "stdlib.h": "c",
+        "stdint.h": "c"
     }
 }

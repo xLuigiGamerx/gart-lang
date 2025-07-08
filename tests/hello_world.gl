@@ -1,4 +1,4 @@
 fn main()
-    printf("Hello World!\n")
+    printf("Hello World!\n") # prints Hello World! and breaks the line
     return 0
 end

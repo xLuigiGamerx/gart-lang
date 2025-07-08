@@ -516,7 +516,7 @@ int stb_c_lexer_get_token(stb_lexer *lexer)
       #endif
 
       STB_C_LEX_CPP_COMMENTS(
-         if (p != lexer->eof && p[0] == '/' && p[1] == '/') {
+         if (p != lexer->eof && p[0] == '#') {
             while (p != lexer->eof && *p != '\r' && *p != '\n')
                ++p;
             continue;
@@ -524,10 +524,10 @@ int stb_c_lexer_get_token(stb_lexer *lexer)
       )
 
       STB_C_LEX_C_COMMENTS(
-         if (p != lexer->eof && p[0] == '/' && p[1] == '*') {
+         if (p != lexer->eof && p[0] == '#' && p[1] == '*') {
             char *start = p;
             p += 2;
-            while (p != lexer->eof && (p[0] != '*' || p[1] != '/'))
+            while (p != lexer->eof && (p[0] != '*' || p[1] != '#'))
                ++p;
             if (p == lexer->eof)
                return stb__clex_token(lexer, CLEX_parse_error, start, p-1);
