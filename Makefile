@@ -1,5 +1,5 @@
 # Target name
-TARGET = build/gart_lang
+TARGET = build/gart
 
 # Output directory for .o files
 BUILD_DIR = build
